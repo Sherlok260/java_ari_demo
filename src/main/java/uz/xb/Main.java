@@ -100,7 +100,7 @@ public class Main {
         logger.info("Stasis Start Channel: {}", start.getChannel().getId());
         ARI.sleep(300); // a slight pause before we start the playback ...
         try {
-            ari.channels().play(start.getChannel().getId(), "sound:weasels-eaten-phonesys").execute();
+            ari.channels().play(start.getChannel().getId(), "sound:hello-world").execute();
         } catch (Throwable e) {
             logger.error("Error: {}", e.getMessage(), e);
         }
