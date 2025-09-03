@@ -28,7 +28,7 @@ public class Main {
             System.err.println("** Expecting at least 3 arguments:\n  url user pass [ariversion]");
             System.exit(1);
         }
-        AriVersion ver = AriVersion.IM_FEELING_LUCKY;
+        AriVersion ver = AriVersion.ARI_8_0_0;
         if (args.length == 4) {
             ver = AriVersion.fromVersionString(args[3]);
         }
