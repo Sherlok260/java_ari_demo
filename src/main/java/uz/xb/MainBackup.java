@@ -5,9 +5,8 @@ import ch.loway.oss.ari4java.AriVersion;
 import ch.loway.oss.ari4java.generated.AriWSHelper;
 import ch.loway.oss.ari4java.generated.models.AsteriskInfo;
 import ch.loway.oss.ari4java.generated.models.Message;
+import ch.loway.oss.ari4java.generated.models.PlaybackFinished;
 import ch.loway.oss.ari4java.generated.models.StasisStart;
-import ch.loway.oss.ari4java.generated.models.StasisEnd;
-import ch.loway.oss.ari4java.generated.models.ChannelHangupRequest;
 import ch.loway.oss.ari4java.tools.ARIException;
 import ch.loway.oss.ari4java.tools.RestException;
 import org.slf4j.Logger;
@@ -17,14 +16,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-public class Main {
+public class MainBackup {
 
     private static final String ARI_APP = "xb-voicebot";
-    private static final String AUDIOSOCKET_HOST = "127.0.0.1";
-    private static final int AUDIOSOCKET_PORT = 5001;
 
     private ARI ari;
-    private final Logger logger = LoggerFactory.getLogger(Main.class);
+    private final Logger logger = LoggerFactory.getLogger(MainBackup.class);
 
     public static void main(String[] args) throws Exception {
         if (args.length < 3) {
@@ -35,7 +32,7 @@ public class Main {
         if (args.length == 4) {
             ver = AriVersion.fromVersionString(args[3]);
         }
-        new Main().start(args[0], args[1], args[2], ver);
+        new MainBackup().start(args[0], args[1], args[2], ver);
     }
 
     private void start(String url, String user, String pass, AriVersion ver) {
@@ -43,7 +40,7 @@ public class Main {
         boolean connected = connect(url, user, pass, ver);
         if (connected) {
             try {
-                runEventLoop();
+                weasels();
             } catch (Throwable t) {
                 logger.error("Error: {}", t.getMessage(), t);
             } finally {
@@ -67,9 +64,8 @@ public class Main {
         return false;
     }
 
-    private void runEventLoop() throws InterruptedException, ARIException {
+    private void weasels() throws InterruptedException, ARIException {
         final ExecutorService threadPool = Executors.newFixedThreadPool(10);
-
         ari.eventsCallback(new AriWSHelper() {
             @Override
             public void onSuccess(Message message) {
@@ -88,33 +84,42 @@ public class Main {
             }
 
             @Override
-            protected void onStasisEnd(StasisEnd message) {
-                logger.info("Call ended: {}", message.getChannel().getId());
+            protected void onPlaybackFinished(PlaybackFinished message) {
+                handlePlaybackFinished(message);
             }
 
-            @Override
-            protected void onChannelHangupRequest(ChannelHangupRequest message) {
-                logger.info("Hangup requested for channel: {}", message.getChannel().getId());
-            }
         });
-
-        // Run for 10 minutes (or until shutdown)
-        threadPool.awaitTermination(10, TimeUnit.MINUTES);
+        // usually we would not terminate and run indefinitely
+        // waiting for 5 minutes before shutting down...
+        threadPool.awaitTermination(5, TimeUnit.MINUTES);
         ari.cleanup();
         System.exit(0);
     }
 
     private void handleStart(StasisStart start) {
-        String channelId = start.getChannel().getId();
-        logger.info("New incoming call: {}", channelId);
-
+        logger.info("Stasis Start Channel: {}", start.getChannel().getId());
+        ARI.sleep(300); // a slight pause before we start the playback ...
         try {
-            // Attach AudioSocket
-            String args = String.format("%s,%s:%d", channelId, AUDIOSOCKET_HOST, AUDIOSOCKET_PORT);
-            ari.channels().externalMedia(channelId, "AudioSocket", args).execute();
-            logger.info("AudioSocket started for channel {}", channelId);
+            ari.channels().play(start.getChannel().getId(), "sound:hello-world").execute();
         } catch (Throwable e) {
-            logger.error("Error attaching AudioSocket: {}", e.getMessage(), e);
+            logger.error("Error: {}", e.getMessage(), e);
         }
     }
+
+    private void handlePlaybackFinished(PlaybackFinished playback) {
+        logger.info("PlaybackFinished - {}", playback.getPlayback().getTarget_uri());
+        if (playback.getPlayback().getTarget_uri().indexOf("channel:") == 0) {
+            try {
+                String chanId = playback.getPlayback().getTarget_uri().split(":")[1];
+                logger.info("Hangup Channel: {}", chanId);
+                ARI.sleep(300); // a slight pause before we hangup ...
+                ari.channels().hangup(chanId).execute();
+            } catch (Throwable e) {
+                logger.error("Error: {}", e.getMessage(), e);
+            }
+        } else {
+            logger.error("Cannot handle URI - {}", playback.getPlayback().getTarget_uri());
+        }
+    }
+
 }
