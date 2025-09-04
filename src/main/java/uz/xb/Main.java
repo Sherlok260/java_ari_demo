@@ -13,11 +13,21 @@ import ch.loway.oss.ari4java.tools.RestException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.InputStream;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 public class Main {
+
+    private int nextPort = 5000;  // start from 5000
+
+    private synchronized int getNextPort() {
+        return nextPort++;
+    }
+
 
     private static final String ARI_APP = "xb-voicebot";
     private static final String AUDIOSOCKET_HOST = "127.0.0.1";
@@ -104,18 +114,41 @@ public class Main {
         System.exit(0);
     }
 
+
     private void handleStart(StasisStart start) {
         String channelId = start.getChannel().getId();
-        logger.info("New incoming call: {}", channelId);
+        int port = getNextPort();  // allocate unique port
+        String hostPort = "127.0.0.1:" + port;
+
+        logger.info("New incoming call {} -> attaching ExternalMedia on {}", channelId, hostPort);
 
         try {
             ari.channels()
-                    .externalMedia(Main.ARI_APP, "127.0.0.1:5001", "slin16")
+                    .externalMedia(Main.ARI_APP, hostPort, "slin16")
                     .execute();
 
-            logger.info("ExternalMedia started for channel {}", channelId);
+            logger.info("ExternalMedia started for channel {} at {}", channelId, hostPort);
+
+            // Spin up a listener socket to capture audio
+            new Thread(() -> listenForAudio(port)).start();
+
         } catch (Throwable e) {
             logger.error("Error attaching ExternalMedia: {}", e.getMessage(), e);
+        }
+    }
+
+    private void listenForAudio(int port) {
+        try (ServerSocket server = new ServerSocket(port)) {
+            Socket socket = server.accept();
+            InputStream in = socket.getInputStream();
+            byte[] buffer = new byte[320]; // 20ms @ 16kHz 16-bit mono = 320 bytes
+            while (true) {
+                int read = in.read(buffer);
+                if (read == -1) break;
+                logger.info("Audio {} bytes: {}", read, java.util.Arrays.toString(buffer));
+            }
+        } catch (Exception e) {
+            logger.error("Audio socket error: {}", e.getMessage(), e);
         }
     }
 
