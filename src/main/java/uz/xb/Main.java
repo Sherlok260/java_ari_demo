@@ -98,22 +98,24 @@ public class Main {
         logger.info("Stasis Start Channel: {}", channelId);
 
         ARI.sleep(300); // slight pause
+        String recordingName = "recording-" + start.getChannel().getId() + "-" + System.currentTimeMillis();
 
         try {
             LiveRecording recording = ari.channels().record(
-                            channelId,
-                            "my-recording",
+                            start.getChannel().getId(),
+                            recordingName,
                             "wav"
                     )
                     .setBeep(true)
                     .setMaxDurationSeconds(60)
-                    .setTerminateOn("none") // safer option
+                    .setTerminateOn("none") // safe value
                     .execute();
 
             logger.info("Recording started: {}", recording.getName());
         } catch (RestException e) {
             logger.error("Recording failed: {}", e.getMessage(), e);
         }
+
 
 
     }
