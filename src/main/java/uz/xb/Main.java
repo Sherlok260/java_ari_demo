@@ -101,19 +101,20 @@ public class Main {
 
         try {
             LiveRecording recording = ari.channels().record(
-                            channelId,         // the channel ID
-                            "my-recording",    // file name
-                            "wav"              // format
+                            channelId,
+                            "my-recording",
+                            "wav"
                     )
-                    .setBeep(true)                 // optional: beep before recording
-                    .setMaxDurationSeconds(60)     // optional: stop after 60 seconds
-                    .setTerminateOn("channel-hangup") // optional
-                    .execute();                     // actually start recording
+                    .setBeep(true)
+                    .setMaxDurationSeconds(60)
+                    .setTerminateOn("channel-hangup") // valid value
+                    .execute();
 
             logger.info("Recording started: {}", recording.getName());
         } catch (RestException e) {
             logger.error("Recording failed: {}", e.getMessage(), e);
         }
+
     }
 
 
