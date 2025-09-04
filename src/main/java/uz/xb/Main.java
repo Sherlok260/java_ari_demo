@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit;
 
 public class Main {
 
-    private static final String ARI_APP = "voice-bot";
+    private static final String ARI_APP = "xb-voicebot";
 
     private ARI ari;
     private final Logger logger = LoggerFactory.getLogger(Main.class);
