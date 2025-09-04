@@ -107,13 +107,14 @@ public class Main {
                     )
                     .setBeep(true)
                     .setMaxDurationSeconds(60)
-                    .setTerminateOn("channel-hangup") // valid value
+                    .setTerminateOn("none") // safer option
                     .execute();
 
             logger.info("Recording started: {}", recording.getName());
         } catch (RestException e) {
             logger.error("Recording failed: {}", e.getMessage(), e);
         }
+
 
     }
 
