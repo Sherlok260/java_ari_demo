@@ -3,35 +3,19 @@ package uz.xb;
 import ch.loway.oss.ari4java.ARI;
 import ch.loway.oss.ari4java.AriVersion;
 import ch.loway.oss.ari4java.generated.AriWSHelper;
-import ch.loway.oss.ari4java.generated.models.AsteriskInfo;
-import ch.loway.oss.ari4java.generated.models.Message;
-import ch.loway.oss.ari4java.generated.models.StasisStart;
-import ch.loway.oss.ari4java.generated.models.StasisEnd;
-import ch.loway.oss.ari4java.generated.models.ChannelHangupRequest;
+import ch.loway.oss.ari4java.generated.models.*;
 import ch.loway.oss.ari4java.tools.ARIException;
 import ch.loway.oss.ari4java.tools.RestException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.InputStream;
-import java.net.ServerSocket;
-import java.net.Socket;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 public class Main {
 
-    private int nextPort = 5000;  // start from 5000
-
-    private synchronized int getNextPort() {
-        return nextPort++;
-    }
-
-
     private static final String ARI_APP = "xb-voicebot";
-    private static final String AUDIOSOCKET_HOST = "127.0.0.1";
-    private static final int AUDIOSOCKET_PORT = 5001;
 
     private ARI ari;
     private final Logger logger = LoggerFactory.getLogger(Main.class);
@@ -53,7 +37,7 @@ public class Main {
         boolean connected = connect(url, user, pass, ver);
         if (connected) {
             try {
-                runEventLoop();
+                weasels();
             } catch (Throwable t) {
                 logger.error("Error: {}", t.getMessage(), t);
             } finally {
@@ -77,9 +61,8 @@ public class Main {
         return false;
     }
 
-    private void runEventLoop() throws InterruptedException, ARIException {
+    private void weasels() throws InterruptedException, ARIException {
         final ExecutorService threadPool = Executors.newFixedThreadPool(10);
-
         ari.eventsCallback(new AriWSHelper() {
             @Override
             public void onSuccess(Message message) {
@@ -98,67 +81,56 @@ public class Main {
             }
 
             @Override
-            protected void onStasisEnd(StasisEnd message) {
-                logger.info("Call ended: {}", message.getChannel().getId());
+            protected void onPlaybackFinished(PlaybackFinished message) {
+                handlePlaybackFinished(message);
             }
 
-            @Override
-            protected void onChannelHangupRequest(ChannelHangupRequest message) {
-                logger.info("Hangup requested for channel: {}", message.getChannel().getId());
-            }
         });
-
-        // Run for 10 minutes (or until shutdown)
-        threadPool.awaitTermination(10, TimeUnit.MINUTES);
+        // usually we would not terminate and run indefinitely
+        // waiting for 5 minutes before shutting down...
+        threadPool.awaitTermination(5, TimeUnit.MINUTES);
         ari.cleanup();
         System.exit(0);
     }
 
-
     private void handleStart(StasisStart start) {
-        String sipChannelId = start.getChannel().getId();
-        int port = getNextPort();
-        String hostPort = "127.0.0.1:" + port;
+        String channelId = start.getChannel().getId();
+        logger.info("Stasis Start Channel: {}", channelId);
 
-        logger.info("Incoming call {} -> creating ExternalMedia {}", sipChannelId, hostPort);
+        ARI.sleep(300); // slight pause
 
         try {
-            // Create external media channel with fluent builder
-            var extChan = ari.channels()
-                    .externalMedia(ARI_APP, hostPort, "slin16")
-                    .setDirection("both")
-                    .execute();
+            LiveRecording recording = ari.channels().record(
+                            channelId,         // the channel ID
+                            "my-recording",    // file name
+                            "wav"              // format
+                    )
+                    .setBeep(true)                 // optional: beep before recording
+                    .setMaxDurationSeconds(60)     // optional: stop after 60 seconds
+                    .setTerminateOn("channel-hangup") // optional
+                    .execute();                     // actually start recording
 
-            logger.info("Created external media channel {}", extChan.getId());
-
-            // Create bridge and add channels
-            var bridge = ari.bridges().create().execute();
-            ari.bridges().addChannel(bridge.getId(), sipChannelId).execute();
-            ari.bridges().addChannel(bridge.getId(), extChan.getId()).execute();
-
-            // Start a listener thread
-            new Thread(() -> listenForAudio(port)).start();
-
-        } catch (Throwable e) {
-            logger.error("Error setting up ExternalMedia: {}", e.getMessage(), e);
+            logger.info("Recording started: {}", recording.getName());
+        } catch (RestException e) {
+            logger.error("Recording failed: {}", e.getMessage(), e);
         }
     }
 
 
-    private void listenForAudio(int port) {
-        try (ServerSocket server = new ServerSocket(port)) {
-            Socket socket = server.accept();
-            InputStream in = socket.getInputStream();
-            byte[] buffer = new byte[320]; // 20ms @ 16kHz 16-bit mono = 320 bytes
-            while (true) {
-                int read = in.read(buffer);
-                if (read == -1) break;
-                logger.info("Audio {} bytes: {}", read, java.util.Arrays.toString(buffer));
+    private void handlePlaybackFinished(PlaybackFinished playback) {
+        logger.info("PlaybackFinished - {}", playback.getPlayback().getTarget_uri());
+        if (playback.getPlayback().getTarget_uri().indexOf("channel:") == 0) {
+            try {
+                String chanId = playback.getPlayback().getTarget_uri().split(":")[1];
+                logger.info("Hangup Channel: {}", chanId);
+                ARI.sleep(300); // a slight pause before we hangup ...
+                ari.channels().hangup(chanId).execute();
+            } catch (Throwable e) {
+                logger.error("Error: {}", e.getMessage(), e);
             }
-        } catch (Exception e) {
-            logger.error("Audio socket error: {}", e.getMessage(), e);
+        } else {
+            logger.error("Cannot handle URI - {}", playback.getPlayback().getTarget_uri());
         }
     }
-
 
 }
