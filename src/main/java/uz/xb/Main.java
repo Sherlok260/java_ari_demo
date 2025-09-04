@@ -109,12 +109,15 @@ public class Main {
         logger.info("New incoming call: {}", channelId);
 
         try {
-            // Attach AudioSocket
-            String args = String.format("%s,%s:%d", channelId, AUDIOSOCKET_HOST, AUDIOSOCKET_PORT);
-            ari.channels().externalMedia(channelId, "AudioSocket", args).execute();
-            logger.info("AudioSocket started for channel {}", channelId);
+            ari.channels()
+                    .externalMedia(Main.ARI_APP, "127.0.0.1:5001", "slin16")
+                    .execute();
+
+            logger.info("ExternalMedia started for channel {}", channelId);
         } catch (Throwable e) {
-            logger.error("Error attaching AudioSocket: {}", e.getMessage(), e);
+            logger.error("Error attaching ExternalMedia: {}", e.getMessage(), e);
         }
     }
+
+
 }
