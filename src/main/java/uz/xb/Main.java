@@ -116,26 +116,34 @@ public class Main {
 
 
     private void handleStart(StasisStart start) {
-        String channelId = start.getChannel().getId();
-        int port = getNextPort();  // allocate unique port
+        String sipChannelId = start.getChannel().getId();
+        int port = getNextPort();
         String hostPort = "127.0.0.1:" + port;
 
-        logger.info("New incoming call {} -> attaching ExternalMedia on {}", channelId, hostPort);
+        logger.info("Incoming call {} -> creating ExternalMedia {}", sipChannelId, hostPort);
 
         try {
-            ari.channels()
-                    .externalMedia(Main.ARI_APP, hostPort, "slin16")
+            // Create external media channel with fluent builder
+            var extChan = ari.channels()
+                    .externalMedia(ARI_APP, hostPort, "slin16")
+                    .setDirection("both")
                     .execute();
 
-            logger.info("ExternalMedia started for channel {} at {}", channelId, hostPort);
+            logger.info("Created external media channel {}", extChan.getId());
 
-            // Spin up a listener socket to capture audio
+            // Create bridge and add channels
+            var bridge = ari.bridges().create().execute();
+            ari.bridges().addChannel(bridge.getId(), sipChannelId).execute();
+            ari.bridges().addChannel(bridge.getId(), extChan.getId()).execute();
+
+            // Start a listener thread
             new Thread(() -> listenForAudio(port)).start();
 
         } catch (Throwable e) {
-            logger.error("Error attaching ExternalMedia: {}", e.getMessage(), e);
+            logger.error("Error setting up ExternalMedia: {}", e.getMessage(), e);
         }
     }
+
 
     private void listenForAudio(int port) {
         try (ServerSocket server = new ServerSocket(port)) {
