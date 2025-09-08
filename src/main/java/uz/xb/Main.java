@@ -85,12 +85,39 @@ public class Main {
                 handlePlaybackFinished(message);
             }
 
+            @Override
+            protected void onChannelVarset(ChannelVarset message) {
+                super.onChannelVarset(message);
+            }
         });
         // usually we would not terminate and run indefinitely
         // waiting for 5 minutes before shutting down...
         threadPool.awaitTermination(5, TimeUnit.MINUTES);
         ari.cleanup();
         System.exit(0);
+    }
+
+    private void handleChannelVarset(ChannelVarset message) {
+
+            String channelId = message.getChannel().getId();
+            String variable = message.getVariable();
+            String value = message.getValue();
+
+            logger.info("ChannelVarset - Channel: {}, Var: {}, Value: {}",
+                    channelId, variable, value);
+
+            // Example: detect silence events from Asterisk
+            if ("SILENCE_STATUS".equalsIgnoreCase(variable)) {
+                if ("detected".equalsIgnoreCase(value)) {
+                    logger.info("Silence detected on channel {}", channelId);
+                    // you could stop recording here if >= 2s silence
+                } else if ("stopped".equalsIgnoreCase(value)) {
+                    logger.info("Silence ended on channel {}", channelId);
+                    // you could start recording when voice resumes
+                }
+
+        }
+
     }
 
     private void handleStart(StasisStart start) {
