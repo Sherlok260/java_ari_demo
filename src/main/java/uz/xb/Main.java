@@ -98,27 +98,24 @@ public class Main {
     }
 
     private void handleChannelVarset(ChannelVarset message) {
+        String channelId = message.getChannel().getId();
+        String variable = message.getVariable();
+        String value = message.getValue();
 
-            String channelId = message.getChannel().getId();
-            String variable = message.getVariable();
-            String value = message.getValue();
+        logger.info("ChannelVarset - Channel: {}, Var: {}, Value: {}",
+                channelId, variable, value);
 
-            logger.info("ChannelVarset - Channel: {}, Var: {}, Value: {}",
-                    channelId, variable, value);
-
-            // Example: detect silence events from Asterisk
-            if ("SILENCE_STATUS".equalsIgnoreCase(variable)) {
-                if ("detected".equalsIgnoreCase(value)) {
-                    logger.info("Silence detected on channel {}", channelId);
-                    // you could stop recording here if >= 2s silence
-                } else if ("stopped".equalsIgnoreCase(value)) {
-                    logger.info("Silence ended on channel {}", channelId);
-                    // you could start recording when voice resumes
-                }
-
+        if ("TALK_DETECTED".equalsIgnoreCase(variable) && "yes".equalsIgnoreCase(value)) {
+            logger.info("Human started speaking on channel {}", channelId);
+            // TODO: start buffering audio for STT
         }
 
+        if ("SILENCE_DETECTED".equalsIgnoreCase(variable) && "yes".equalsIgnoreCase(value)) {
+            logger.info("Silence detected on channel {}", channelId);
+            // TODO: stop buffering, send segment to STT -> LLM -> TTS pipeline
+        }
     }
+
 
     private void handleStart(StasisStart start) {
         String channelId = start.getChannel().getId();
