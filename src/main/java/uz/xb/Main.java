@@ -87,7 +87,7 @@ public class Main {
 
             @Override
             protected void onChannelVarset(ChannelVarset message) {
-                super.onChannelVarset(message);
+                handleChannelVarset(message);
             }
         });
         // usually we would not terminate and run indefinitely
