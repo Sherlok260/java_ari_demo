@@ -9,6 +9,7 @@ import ch.loway.oss.ari4java.tools.RestException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -121,28 +122,42 @@ public class Main {
         String channelId = start.getChannel().getId();
         logger.info("Stasis Start Channel: {}", channelId);
 
-        ARI.sleep(300); // slight pause
-        String recordingName = "recording-" + start.getChannel().getId() + "-" + System.currentTimeMillis();
-
         try {
-            LiveRecording recording = ari.channels().record(
-                            start.getChannel().getId(),
-                            recordingName,
-                            "wav"
-                    )
-                    .setBeep(true)
-                    .setMaxDurationSeconds(60)
-                    .setTerminateOn("none") // safe value
+            // AudioSocket kanalini yaratish
+            Channel asChannel = ari.channels()
+                    .create("xb-bot", "inbound")
+                    .setApp(ARI_APP)
+                    .setChannelId("as-" + channelId)
+                    .setVariables(Map.of("ORIG_CHAN", channelId))
                     .execute();
 
-            logger.info("Recording started: {}", recording.getName());
+            logger.info("AudioSocket channel created: {}", asChannel.getId());
+
+            // Bridge yaratish
+            Bridge bridge = ari.bridges().create()
+                    .setType("mixing")
+                    .setBridgeId("bridge-" + channelId)
+                    .setName("bot-bridge")
+                    .execute();
+
+            logger.info("Bridge created: {}", bridge.getId());
+
+            // Caller kanalini bridge’ga qo‘shish
+            ari.bridges().addChannel(bridge.getId(), channelId).execute();
+
+            // AudioSocket kanalini bridge’ga qo‘shish
+            ari.bridges().addChannel(bridge.getId(), asChannel.getId()).execute();
+
+            logger.info("Both channels added to bridge {}", bridge.getId());
+
         } catch (RestException e) {
-            logger.error("Recording failed: {}", e.getMessage(), e);
+            logger.error("Failed to create AudioSocket channel: {}", e.getMessage(), e);
         }
-
-
-
     }
+
+
+
+
 
 
     private void handlePlaybackFinished(PlaybackFinished playback) {
