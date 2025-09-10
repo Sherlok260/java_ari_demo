@@ -125,9 +125,19 @@ public class Main {
         try {
             // Yangi AudioSocket kanal yaratish
             String endpoint = "audiosocket:stream"; // audiosocket.conf dagi section nomi
+
             Channel audioChan = ari.channels()
-                    .create(endpoint, ARI_APP)
+                    .originate("audiosocket:stream")   // audiosocket.conf dagi [stream]
+                    .setApp("xb-voicebot")             // extensions.conf dagi Stasis nomi
+                    .setAppArgs("fromARI")
+                    .setCallerId("AudioSocket <1000>")
+                    .setTimeout(30)
                     .execute();
+
+
+//            Channel audioChan = ari.channels()
+//                    .create(endpoint, ARI_APP)
+//                    .execute();
 
             logger.info("AudioSocket channel created: {}", audioChan.getId());
 
