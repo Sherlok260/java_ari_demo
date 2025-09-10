@@ -123,30 +123,25 @@ public class Main {
         logger.info("Stasis Start Channel: {}", channelId);
 
         try {
-            // AudioSocket kanalini yaratish
-            Channel asChannel = ari.channels()
-                    .create("xb-bot", "inbound")
-                    .setApp(ARI_APP)
-                    .setChannelId("as-" + channelId)
-                    .setVariables(Map.of("ORIG_CHAN", channelId))
+            // Yangi AudioSocket kanal yaratish
+            String endpoint = "audiosocket:stream"; // audiosocket.conf dagi section nomi
+            Channel audioChan = ari.channels()
+                    .create(endpoint, ARI_APP)
                     .execute();
 
-            logger.info("AudioSocket channel created: {}", asChannel.getId());
+            logger.info("AudioSocket channel created: {}", audioChan.getId());
 
             // Bridge yaratish
-            Bridge bridge = ari.bridges().create()
+            Bridge bridge = ari.bridges()
+                    .create()
                     .setType("mixing")
-                    .setBridgeId("bridge-" + channelId)
-                    .setName("bot-bridge")
                     .execute();
 
             logger.info("Bridge created: {}", bridge.getId());
 
-            // Caller kanalini bridge’ga qo‘shish
+            // Call channel va AudioSocket channelni bridgega qo'shish
             ari.bridges().addChannel(bridge.getId(), channelId).execute();
-
-            // AudioSocket kanalini bridge’ga qo‘shish
-            ari.bridges().addChannel(bridge.getId(), asChannel.getId()).execute();
+            ari.bridges().addChannel(bridge.getId(), audioChan.getId()).execute();
 
             logger.info("Both channels added to bridge {}", bridge.getId());
 
